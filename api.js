@@ -114,3 +114,101 @@ async function loadNotes() {
 
 loadBtn.addEventListener('click', loadNotes);
 
+async function createNote(event) {
+    event.preventDefault();
+
+    const title = titleInput.value.trim();
+    const body = bodyInput.value.trim();
+
+    if (!title) {
+        setStatus('Error!! Title note is requires', 'error');
+        titleInput.focus();
+        return;
+    }
+
+    if (title.length > 100) {
+        setStatus('Error: Title must not exceed 100 characters', 'error')
+        titleInput.focus();
+        return;
+    }
+
+    loadBtn.disabled = true;
+    submitBtn.disabled = true;
+    setStatus('Creating a new note...', 'loading');
+
+    try {
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            title: title,
+            body: body,
+            userId: 1
+          })
+        });
+    
+        if (!response.ok) {
+          throw new Error(`HTTP Error ${response.status}: ${response.statusText}`);
+        }
+    
+        const newNote = await response.json();
+        const statusCode = response.status;
+    
+        // JSONPlaceholder returns id: 101 for created items.
+        // Ensure body matches input in UI if mock API truncates or alters it.
+        newNote.title = title;
+        newNote.body = body;
+    
+        // Remove empty state message if present
+        const emptyState = notesList.querySelector('.empty-state');
+        if (emptyState) {
+          notesList.removeChild(emptyState);
+        }
+    
+        // Insert new note at the top of the DOM list
+        const li = document.createElement('li');
+        li.className = 'note-item';
+        li.setAttribute('data-id', newNote.id);
+    
+        const noteContent = document.createElement('div');
+        noteContent.className = 'note-content';
+    
+        const h3 = document.createElement('h3');
+        h3.className = 'note-title';
+        h3.textContent = newNote.title;
+    
+        const p = document.createElement('p');
+        p.className = 'note-body';
+        p.textContent = newNote.body || 'No body content';
+    
+        noteContent.appendChild(h3);
+        noteContent.appendChild(p);
+    
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'delete-btn';
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.addEventListener('click', () => deleteNote(newNote.id, li));
+    
+        li.appendChild(noteContent);
+        li.appendChild(deleteBtn);
+    
+        notesList.insertBefore(li, notesList.firstChild);
+    
+        // Reset Form
+        noteForm.reset();
+        titleCount.textContent = '0';
+    
+        setStatus(`Note created (status ${statusCode}, id ${newNote.id}).`, 'success');
+      } catch (error) {
+        console.error('Failed to create note:', error);
+        setStatus(`Failed to create note: ${error.message}`, 'error');
+      } finally {
+        loadBtn.disabled = false;
+        submitBtn.disabled = false;
+      }
+}
+
+noteForm.addEventListener('submit', createNote)
