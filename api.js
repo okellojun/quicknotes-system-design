@@ -21,7 +21,7 @@ titleInput.addEventListener('input', () => {
 
 function setStatus(message, type = 'info') {
     statusParam.textContent = message;
-    statusParam.className = 'status-message' + type;
+    statusParam.className = 'status-message ' + type;
 }
 
 /**
@@ -85,7 +85,7 @@ function renderNotes(notes) {
         deleteBtn.type = 'button';
         deleteBtn.className = 'delete-btn';
         deleteBtn.textContent = 'Delete';
-        deleteBtn.addEventListener('click', () => deleteNote(note.id, li));
+        deleteBtn.addEventListener('click', () => deleteNotes(note.id, li, deleteBtn));
     
         li.appendChild(noteContent);
         li.appendChild(deleteBtn);
@@ -121,7 +121,7 @@ async function createNote(event) {
     const body = bodyInput.value.trim();
 
     if (!title) {
-        setStatus('Error!! Title note is requires', 'error');
+        setStatus('Error!! Title note is required', 'error');
         titleInput.focus();
         return;
     }
@@ -137,7 +137,7 @@ async function createNote(event) {
     setStatus('Creating a new note...', 'loading');
 
     try {
-        const response = await fetch(API_URL, {
+        const newNote = await request(API_URL, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -148,13 +148,6 @@ async function createNote(event) {
             userId: 1
           })
         });
-    
-        if (!response.ok) {
-          throw new Error(`HTTP Error ${response.status}: ${response.statusText}`);
-        }
-    
-        const newNote = await response.json();
-        const statusCode = response.status;
     
         // JSONPlaceholder returns id: 101 for created items.
         // Ensure body matches input in UI if mock API truncates or alters it.
@@ -190,7 +183,7 @@ async function createNote(event) {
         deleteBtn.type = 'button';
         deleteBtn.className = 'delete-btn';
         deleteBtn.textContent = 'Delete';
-        deleteBtn.addEventListener('click', () => deleteNote(newNote.id, li));
+        deleteBtn.addEventListener('click', () => deleteNotes(newNote.id, li, deleteBtn));
     
         li.appendChild(noteContent);
         li.appendChild(deleteBtn);
@@ -201,7 +194,7 @@ async function createNote(event) {
         noteForm.reset();
         titleCount.textContent = '0';
     
-        setStatus(`Note created (status ${statusCode}, id ${newNote.id}).`, 'success');
+        setStatus(`Note created (id ${newNote.id}).`, 'success');
       } catch (error) {
         console.error('Failed to create note:', error);
         setStatus(`Failed to create note: ${error.message}`, 'error');
@@ -212,3 +205,55 @@ async function createNote(event) {
 }
 
 noteForm.addEventListener('submit', createNote)
+
+
+/**
+ * 
+* NOTE ON JSONPLACEHOLDER MOCK API BEHAVIOR:
+* JSONPlaceholder is a fake REST API. It simulates HTTP responses (returning HTTP 200 OK
+* for DELETE requests), but it does NOT actually mutate any data on its server backend.
+* Furthermore, dynamically created notes (e.g. ID 101) do not exist on the mock server database.
+* To provide a realistic user experience:
+* 1. We issue the actual DELETE /posts/{id} HTTP fetch call.
+* 2. On successful HTTP response (or when deleting a locally-created note with fake ID > 100),
+*    we remove the DOM element locally and inform the user.
+* 
+* @param {number|string} noteId - ID of the note to delete
+* @param {HTMLLIElement} liElement - The DOM element corresponding to the note
+
+ */
+
+async function deleteNotes(noteId, liElement, deleteBtn) {
+    deleteBtn.disabled = true;
+    loadBtn.disabled = true;
+    submitBtn.disabled = true;
+    setStatus(`Deleting note ${noteId}...`, 'loading');
+
+    try {
+        // Send HTTP DELETE to the mock server
+        await request(`${API_URL}/${noteId}`, {
+          method: 'DELETE'
+        });
+    
+        // Remove element from DOM on success
+        if (liElement && liElement.parentNode) {
+          liElement.parentNode.removeChild(liElement);
+        }
+    
+        // Check if list is now empty
+        if (notesList.children.length === 0) {
+          renderNotes([]);
+        }
+    
+        setStatus(`Note #${noteId} deleted successfully.`, 'success');
+      } catch (error) {
+        console.error(`Failed to delete note #${noteId}:`, error);
+        setStatus(`Failed to delete note #${noteId}: ${error.message}`, 'error');
+      } finally {
+        deleteBtn.disabled = false;
+        loadBtn.disabled = false;
+        submitBtn.disabled = false;
+    }
+}
+
+renderNotes([]);
